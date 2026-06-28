@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分析结果 - 网站访问量统计分析系统</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <span class="logo">📊 网站访问量分析系统</span>
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/user/task.html">分析任务</a>
+            <a href="/admin/index.html">管理后台</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h3 class="card-title">📊 分析结果可视化</h3>
+            <div id="result-chart" class="chart-container"></div>
+        </div>
+
+        <div class="card">
+            <h3 class="card-title">📋 结果数据</h3>
+            <table class="table">
+                <thead><tr id="table-header"><th>加载中...</th></tr></thead>
+                <tbody id="result-tbody"><tr><td style="text-align:center;color:#888">加载中...</td></tr></tbody>
+            </table>
+        </div>
+
+        <div style="text-align:center;margin:20px 0">
+            <a href="/user/task.html" class="btn btn-primary">返回任务列表</a>
+        </div>
+    </div>
+
+    <script src="/js/echarts.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let currentTaskType = '';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const taskId = params.get('id');
+            if (taskId) loadResult(taskId);
+        });
+
+        async function loadResult(taskId) {
+            const res = await App.get(`/api/task/${taskId}/result`);
+            if (!res || res.code !== 200) { App.showToast(res?.msg || '获取失败', 'error'); return; }
+            currentTaskType = res.taskType;
+            renderTable(res.data);
+            renderChart(res.data);
+        }
+
+        function renderTable(data) {
+            const thead = document.getElementById('table-header');
+            const tbody = document.getElementById('result-tbody');
+            if (!data?.length) { thead.innerHTML = '<th>暂无数据</th>'; tbody.innerHTML = ''; return; }
+
+            const headers = currentTaskType === 'RANK' ? ['网站URL', '访问量'] :
+                            currentTaskType === 'TIME_PEAK' ? ['网站URL', '小时', '访问量'] :
+                            ['网站URL', 'IP网段', '访问量'];
+            thead.innerHTML = '<th>#</th>' + headers.map(h => `<th>${h}</th>`).join('');
+
+            const sorted = [...data].sort((a, b) => parseInt(b.resultValue) - parseInt(a.resultValue));
+            tbody.innerHTML = sorted.map((item, i) => {
+                let row = `<td>${i+1}</td><td>${item.resultKey}</td>`;
+                if (currentTaskType !== 'RANK') row += `<td>${item.extra || '-'}</td>`;
+                row += `<td>${parseInt(item.resultValue).toLocaleString()}</td>`;
+                return `<tr>${row}</tr>`;
+            }).join('');
+        }
+
+        function renderChart(data) {
+            if (!data?.length) return;
+            const chart = echarts.init(document.getElementById('result-chart'));
+            let option = {};
+
+            if (currentTaskType === 'RANK') {
+                const sorted = [...data].sort((a, b) => parseInt(b.resultValue) - parseInt(a.resultValue));
+                option = {
+                    title: { text: '网站访问量排行', left: 'center' },
+                    tooltip: { trigger: 'axis' },
+                    grid: { left: '3%', right: '4%', bottom: '8%', containLabel: true },
+                    xAxis: { type: 'category', data: sorted.map(d => d.resultKey.replace('http://www.', '')), axisLabel: { rotate: 30 } },
+                    yAxis: { type: 'value', name: '访问量' },
+                    series: [{ type: 'bar', data: sorted.map(d => parseInt(d.resultValue)), itemStyle: { borderRadius: [4,4,0,0] }, label: { show: true, position: 'top' } }]
+                };
+            } else if (currentTaskType === 'TIME_PEAK') {
+                const urlMap = {};
+                data.forEach(d => { if (!urlMap[d.resultKey]) urlMap[d.resultKey] = {}; urlMap[d.resultKey][d.extra] = parseInt(d.resultValue); });
+                const hours = Array.from({length:24}, (_, i) => String(i).padStart(2, '0'));
+                option = {
+                    title: { text: '各网站24小时访问量峰值', left: 'center' },
+                    tooltip: { trigger: 'axis' }, legend: { bottom: 0, type: 'scroll' },
+                    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                    xAxis: { type: 'category', data: hours.map(h => h+':00') },
+                    yAxis: { type: 'value', name: '访问量' },
+                    series: Object.entries(urlMap).map(([url, hd]) => ({ name: url.replace('http://www.',''), type: 'line', smooth: true, data: hours.map(h => hd[h]||0) }))
+                };
+            } else if (currentTaskType === 'IP_DIST') {
+                const urlMap = {};
+                data.forEach(d => { if (!urlMap[d.resultKey]) urlMap[d.resultKey] = []; urlMap[d.resultKey].push({ip: d.extra, count: parseInt(d.resultValue)}); });
+                const topUrl = Object.keys(urlMap).sort((a,b) => urlMap[b].reduce((s,d)=>s+d.count,0) - urlMap[a].reduce((s,d)=>s+d.count,0))[0];
+                option = {
+                    title: { text: `${topUrl} - IP来源分布`, left: 'center' },
+                    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                    series: [{ type: 'pie', radius: ['35%','65%'], data: urlMap[topUrl].sort((a,b)=>b.count-a.count).slice(0,10).map(d=>({name:d.ip,value:d.count})), label: { formatter: '{b}\n{d}%' } }]
+                };
+            }
+            chart.setOption(option);
+            window.addEventListener('resize', () => chart.resize());
+        }
+    </script>
+</body>
+</html>

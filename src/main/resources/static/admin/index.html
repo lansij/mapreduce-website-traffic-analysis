@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 网站访问量统计分析系统</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .admin-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .admin-tab { padding: 10px 24px; background: #f0f0f0; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+        .admin-tab:hover { background: #e0e0e0; }
+        .admin-tab.active { background: #1a73e8; color: white; }
+        .admin-content { display: none; }
+        .admin-content.active { display: block; }
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .user-info .username { color: #fff; font-weight: 500; }
+        .btn-logout { background: rgba(255,255,255,0.2); color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-logout:hover { background: rgba(255,255,255,0.35); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <span class="logo">📊 管理后台</span>
+        <div class="nav-links">
+            <a href="/">分析任务</a>
+            <a href="/admin/" style="color:#fff">⚙️ 管理后台</a>
+        </div>
+        <div class="user-info" id="user-info"></div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h3 class="card-title">⚙️ 管理后台</h3>
+            <div class="admin-tabs">
+                <button class="admin-tab active" onclick="showTab('users', this)">👥 用户管理</button>
+                <button class="admin-tab" onclick="showTab('tasks', this)">📋 任务管理</button>
+                <button class="admin-tab" onclick="showTab('data', this)">📁 数据管理</button>
+                <button class="admin-tab" onclick="showTab('cache', this)">🗑️ 缓存管理</button>
+            </div>
+
+            <!-- 用户管理 -->
+            <div class="admin-content active" id="tab-users">
+                <button class="btn btn-sm btn-primary" onclick="loadUsers()" style="margin-bottom:12px">刷新</button>
+                <table class="table">
+                    <thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
+                    <tbody id="user-tbody"><tr><td colspan="5" style="text-align:center">加载中...</td></tr></tbody>
+                </table>
+            </div>
+
+            <!-- 任务管理 -->
+            <div class="admin-content" id="tab-tasks">
+                <button class="btn btn-sm btn-primary" onclick="loadTasks()" style="margin-bottom:12px">刷新</button>
+                <table class="table">
+                    <thead><tr><th>ID</th><th>用户ID</th><th>任务名称</th><th>类型</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+                    <tbody id="task-tbody"><tr><td colspan="7" style="text-align:center">加载中...</td></tr></tbody>
+                </table>
+            </div>
+
+            <!-- 数据管理 -->
+            <div class="admin-content" id="tab-data">
+                <button class="btn btn-sm btn-primary" onclick="loadData()" style="margin-bottom:12px">刷新</button>
+                <table class="table">
+                    <thead><tr><th>文件名</th><th>大小</th><th>类型</th></tr></thead>
+                    <tbody id="data-tbody"><tr><td colspan="3" style="text-align:center">加载中...</td></tr></tbody>
+                </table>
+            </div>
+
+            <!-- 缓存管理 -->
+            <div class="admin-content" id="tab-cache">
+                <p style="color:#666;margin-bottom:16px">清除所有分析任务的输出缓存数据。清除后，历史分析结果将被删除。</p>
+                <button class="btn btn-danger" onclick="clearCache()" style="padding:12px 32px">🗑️ 清除所有缓存</button>
+                <div id="cache-result" style="margin-top:16px;color:#666"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const res = await App.get('/api/user/info');
+            if (res?.code !== 200 || res.data.role !== 'ADMIN') {
+                App.showToast('需要管理员权限', 'error');
+                setTimeout(() => window.location.href = '/', 1000);
+                return;
+            }
+            document.getElementById('user-info').innerHTML = `
+                <span class="username">${res.data.username} (管理员)</span>
+                <button class="btn-logout" onclick="logout()">退出</button>
+            `;
+            loadUsers();
+        });
+
+        async function logout() {
+            await App.post('/api/user/logout');
+            window.location.href = '/login.html';
+        }
+
+        function showTab(tab, btn) {
+            document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.admin-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+            // 切换标签时加载数据
+            if (tab === 'users') loadUsers();
+            else if (tab === 'tasks') loadTasks();
+            else if (tab === 'data') loadData();
+        }
+
+        // 用户管理
+        async function loadUsers() {
+            const res = await App.get('/api/admin/users');
+            const tbody = document.getElementById('user-tbody');
+            if (!res?.data?.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">暂无数据</td></tr>'; return; }
+            tbody.innerHTML = res.data.map(u => `
+                <tr>
+                    <td>${u.id}</td>
+                    <td>${u.username}</td>
+                    <td><span class="status ${u.role==='ADMIN'?'status-running':'status-finished'}">${u.role==='ADMIN'?'管理员':'用户'}</span></td>
+                    <td>${App.formatTime(u.createTime)}</td>
+                    <td><button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">删除</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('确定删除该用户?')) return;
+            const res = await App.del(`/api/admin/user/${id}`);
+            if (res?.code === 200) { App.showToast('删除成功', 'success'); loadUsers(); }
+            else App.showToast(res?.msg || '删除失败', 'error');
+        }
+
+        // 任务管理
+        async function loadTasks() {
+            const res = await App.get('/api/admin/tasks');
+            const tbody = document.getElementById('task-tbody');
+            if (!res?.data?.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">暂无任务</td></tr>'; return; }
+            tbody.innerHTML = res.data.map(t => {
+                const s = App.statusInfo(t.status);
+                return `<tr>
+                    <td>${t.id}</td>
+                    <td>${t.userId}</td>
+                    <td>${t.taskName}</td>
+                    <td>${App.taskTypeName(t.taskType)}</td>
+                    <td><span class="status ${s.class}">${s.text}</span></td>
+                    <td>${App.formatTime(t.createTime)}</td>
+                    <td><button class="btn btn-sm btn-danger" onclick="deleteTask(${t.id})">删除</button></td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function deleteTask(id) {
+            if (!confirm('确定删除该任务及结果?')) return;
+            const res = await App.del(`/api/admin/task/${id}`);
+            if (res?.code === 200) { App.showToast('删除成功', 'success'); loadTasks(); }
+            else App.showToast(res?.msg || '删除失败', 'error');
+        }
+
+        // 数据管理
+        async function loadData() {
+            const res = await App.get('/api/admin/data/info');
+            const tbody = document.getElementById('data-tbody');
+            if (!res?.data?.length) { tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">暂无数据</td></tr>'; return; }
+            tbody.innerHTML = res.data.map(f => `
+                <tr>
+                    <td>${f.name}</td>
+                    <td>${f.isDirectory ? '-' : App.formatSize(f.size)}</td>
+                    <td>${f.isDirectory ? '📁 目录' : '📄 文件'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 缓存管理
+        async function clearCache() {
+            if (!confirm('确定清除所有缓存?')) return;
+            const res = await App.post('/api/admin/cache/clear');
+            document.getElementById('cache-result').innerHTML = `<span style="color:#34a853">✅ ${res?.msg || '已清除'}</span>`;
+            App.showToast(res?.msg || '已清除', 'success');
+        }
+    </script>
+</body>
+</html>

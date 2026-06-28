@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 网站访问量统计分析系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        .login-container {
+            width: 420px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        .login-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 40px 30px 30px;
+            text-align: center;
+            color: white;
+        }
+        .login-header .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        .login-header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .login-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .login-body {
+            padding: 30px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 24px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 4px;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            background: white;
+            color: #4facfe;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+        .input-wrapper {
+            position: relative;
+        }
+        .input-wrapper .icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: #999;
+        }
+        .form-control {
+            width: 100%;
+            padding: 14px 14px 14px 44px;
+            border: 2px solid #e8e8e8;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #4facfe;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(79, 172, 254, 0.1);
+        }
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(79, 172, 254, 0.4);
+        }
+        .btn-login:active {
+            transform: translateY(0);
+        }
+        .btn-register {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-register:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(67, 233, 123, 0.4);
+        }
+        .test-accounts {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #666;
+        }
+        .test-accounts .title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .test-accounts .account {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .test-accounts .role {
+            color: #4facfe;
+            font-weight: 500;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            transition: opacity 0.3s;
+        }
+        .toast.success { background: #d4edda; color: #155724; }
+        .toast.error { background: #f8d7da; color: #721c24; }
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            animation: float 6s infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 背景粒子 -->
+    <div class="particles" id="particles"></div>
+
+    <div class="login-container">
+        <div class="login-header">
+            <div class="icon">📊</div>
+            <h1>网站访问量分析系统</h1>
+            <p>基于 Hadoop MapReduce 的大数据分析平台</p>
+        </div>
+
+        <div class="login-body">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('login')">登 录</div>
+                <div class="tab" onclick="switchTab('register')">注 册</div>
+            </div>
+
+            <!-- 登录表单 -->
+            <form id="login-form" onsubmit="return handleLogin(event)">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <div class="input-wrapper">
+                        <span class="icon">👤</span>
+                        <input type="text" class="form-control" id="login-username" placeholder="请输入用户名" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <div class="input-wrapper">
+                        <span class="icon">🔒</span>
+                        <input type="password" class="form-control" id="login-password" placeholder="请输入密码" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn-login">登 录</button>
+            </form>
+
+            <!-- 注册表单 -->
+            <form id="register-form" style="display:none" onsubmit="return handleRegister(event)">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <div class="input-wrapper">
+                        <span class="icon">👤</span>
+                        <input type="text" class="form-control" id="reg-username" placeholder="请输入用户名" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <div class="input-wrapper">
+                        <span class="icon">🔒</span>
+                        <input type="password" class="form-control" id="reg-password" placeholder="请输入密码" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>确认密码</label>
+                    <div class="input-wrapper">
+                        <span class="icon">🔒</span>
+                        <input type="password" class="form-control" id="reg-password2" placeholder="请再次输入密码" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn-register">注 册</button>
+            </form>
+
+            <div class="test-accounts">
+                <div class="title">📦 测试账号</div>
+                <div class="account">
+                    <span>管理员</span>
+                    <span class="role">admin / admin123</span>
+                </div>
+                <div class="account">
+                    <span>普通用户</span>
+                    <span class="role">test / test123</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 生成背景粒子
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 6 + 's';
+                particle.style.animationDuration = (Math.random() * 4 + 4) + 's';
+                particle.style.width = (Math.random() * 4 + 4) + 'px';
+                particle.style.height = particle.style.width;
+                container.appendChild(particle);
+            }
+        }
+        createParticles();
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            if (tab === 'login') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('login-form').style.display = 'block';
+                document.getElementById('register-form').style.display = 'none';
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('register-form').style.display = 'block';
+            }
+        }
+
+        function showToast(msg, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        async function request(url, data = {}) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    credentials: 'same-origin',
+                    body: new URLSearchParams(data).toString()
+                });
+                return await response.json();
+            } catch (e) {
+                return { code: 500, msg: '网络请求失败' };
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const res = await request('/api/user/login', { username, password });
+            if (res && res.code === 200) {
+                showToast('登录成功，正在跳转...', 'success');
+                setTimeout(() => window.location.href = '/user/task.html', 800);
+            } else {
+                showToast(res?.msg || '登录失败', 'error');
+            }
+            return false;
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value;
+            const password = document.getElementById('reg-password').value;
+            const password2 = document.getElementById('reg-password2').value;
+            if (password !== password2) { showToast('两次密码不一致', 'error'); return false; }
+            const res = await request('/api/user/register', { username, password });
+            if (res && res.code === 200) {
+                showToast('注册成功，请登录', 'success');
+                switchTab('login');
+            } else {
+                showToast(res?.msg || '注册失败', 'error');
+            }
+            return false;
+        }
+    </script>
+</body>
+</html>

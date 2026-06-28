@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网站访问量统计分析系统</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .task-select { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .stat-item { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px; text-align: center; }
+        .stat-item .num { font-size: 28px; font-weight: 700; }
+        .stat-item .label { font-size: 12px; opacity: 0.9; margin-top: 4px; }
+        .analysis-card { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 24px; margin-bottom: 24px; }
+        .analysis-card h3 { color: #1a73e8; margin-bottom: 16px; border-bottom: 2px solid #e8eaed; padding-bottom: 8px; }
+        .dual-chart { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .dual-chart { grid-template-columns: 1fr; } }
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .user-info .username { color: #fff; font-weight: 500; }
+        .btn-logout { background: rgba(255,255,255,0.2); color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-logout:hover { background: rgba(255,255,255,0.35); }
+        .admin-link { background: rgba(255,255,255,0.15); color: white; padding: 6px 16px; border-radius: 4px; text-decoration: none; font-size: 13px; }
+        .admin-link:hover { background: rgba(255,255,255,0.3); }
+        .task-list { display: flex; flex-direction: column; gap: 12px; }
+        .task-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
+            border-radius: 12px;
+            border: 1px solid #e8ecf1;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+        .task-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: #667eea;
+        }
+        .task-item-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+        }
+        .task-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex-shrink: 0;
+        }
+        .task-icon.finished { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .task-icon.running { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .task-icon.failed { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+        .task-info { flex: 1; }
+        .task-info h4 {
+            margin: 0 0 4px 0;
+            font-size: 15px;
+            color: #333;
+            font-weight: 600;
+        }
+        .task-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px;
+            color: #888;
+        }
+        .task-meta span { display: flex; align-items: center; gap: 4px; }
+        .task-item-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .task-status {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .task-status.finished { background: #d4edda; color: #155724; }
+        .task-status.running { background: #fff3cd; color: #856404; animation: pulse 1.5s infinite; }
+        .task-status.failed { background: #f8d7da; color: #721c24; }
+        .task-status.pending { background: #e2e3e5; color: #383d41; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .btn-view {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-view:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+        .empty-state p { margin: 0; font-size: 14px; }
+        .task-id {
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #666;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <span class="logo">📊 网站访问量分析系统</span>
+        <div class="nav-links">
+            <a href="/" style="color:#fff">分析任务</a>
+            <a href="/admin/index.html" class="admin-link" id="admin-link" style="display:none">⚙️ 管理后台</a>
+        </div>
+        <div class="user-info" id="user-info">
+            <a href="/login.html" class="btn-logout" style="text-decoration:none">登录</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 提交任务 -->
+        <div class="card">
+            <h3 class="card-title">🚀 提交分析任务</h3>
+            <div class="task-select">
+                <div class="form-group" style="margin:0">
+                    <label>选择分析任务</label>
+                    <select class="form-control" id="task-select">
+                        <option value="">-- 请选择 --</option>
+                        <option value="网站综合访问量分析">网站综合访问量分析</option>
+                        <option value="热门网站流量深度分析">热门网站流量深度分析</option>
+                        <option value="全站访问数据统计报告">全站访问数据统计报告</option>
+                        <option value="用户访问行为分析">用户访问行为分析</option>
+                        <option value="网站运营数据日报">网站运营数据日报</option>
+                        <option value="季度流量趋势分析">季度流量趋势分析</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="submitTask()" style="height:42px">开始分析</button>
+            </div>
+        </div>
+
+        <!-- 任务列表 -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+                <h3 class="card-title" style="margin:0; border:none; padding:0; font-size:16px">📋 任务记录</h3>
+                <button class="btn-view" onclick="loadTasks()" style="padding:8px 20px">🔄 刷新</button>
+            </div>
+            <div class="task-list" id="task-list">
+                <div class="empty-state">
+                    <div class="icon">📭</div>
+                    <p>暂无任务记录，提交一个分析任务试试吧</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分析结果展示区 -->
+        <div id="result-section" style="display:none">
+            <div class="card">
+                <h3 class="card-title" id="result-title">📊 分析结果概览</h3>
+                <div class="stats-grid" id="stats-grid"></div>
+            </div>
+
+            <div class="analysis-card">
+                <h3>📊 网站访问量热度排行</h3>
+                <div class="dual-chart">
+                    <div id="rank-bar" style="height:400px"></div>
+                    <div id="rank-pie" style="height:400px"></div>
+                </div>
+                <div style="margin-top:16px">
+                    <table class="table"><thead><tr><th>#</th><th>网站</th><th>访问量</th><th>占比</th></tr></thead><tbody id="rank-tbody"></tbody></table>
+                </div>
+            </div>
+
+            <div class="analysis-card">
+                <h3>⏰ 时间段流量峰值分析</h3>
+                <div class="dual-chart">
+                    <div id="time-line" style="height:400px"></div>
+                    <div id="time-heatmap" style="height:400px"></div>
+                </div>
+                <div style="margin-top:16px">
+                    <table class="table"><thead><tr><th>网站</th><th>高峰时段</th><th>访问量</th></tr></thead><tbody id="time-tbody"></tbody></table>
+                </div>
+            </div>
+
+            <div class="analysis-card">
+                <h3>🌍 IP来源分布分析</h3>
+                <div class="dual-chart">
+                    <div id="ip-pie" style="height:400px"></div>
+                    <div id="ip-bar" style="height:400px"></div>
+                </div>
+                <div style="margin-top:16px">
+                    <table class="table"><thead><tr><th>#</th><th>IP网段</th><th>访问量</th><th>占比</th></tr></thead><tbody id="ip-tbody"></tbody></table>
+                </div>
+            </div>
+
+            <div class="analysis-card">
+                <h3>📍 用户所在地区分布分析</h3>
+                <div class="dual-chart">
+                    <div id="region-pie" style="height:400px"></div>
+                    <div id="region-bar" style="height:400px"></div>
+                </div>
+                <div style="margin-top:16px">
+                    <table class="table"><thead><tr><th>#</th><th>地区</th><th>访问量</th><th>占比</th></tr></thead><tbody id="region-tbody"></tbody></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/echarts.min.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkLogin();
+            loadTasks();
+        });
+
+        async function checkLogin() {
+            const res = await App.get('/api/user/info');
+            if (res && res.code === 200) {
+                currentUser = res.data;
+                updateNavbar();
+            } else if (res === null) {
+                // App.get already redirected to login
+                return;
+            } else {
+                window.location.href = '/login.html';
+            }
+        }
+
+        function updateNavbar() {
+            const userInfo = document.getElementById('user-info');
+            const adminLink = document.getElementById('admin-link');
+            if (currentUser) {
+                userInfo.innerHTML = `
+                    <span class="username">${currentUser.username} (${currentUser.role === 'ADMIN' ? '管理员' : '用户'})</span>
+                    <button class="btn-logout" onclick="logout()">退出</button>
+                `;
+                if (currentUser.role === 'ADMIN') {
+                    adminLink.style.display = 'inline-block';
+                }
+            }
+        }
+
+        async function logout() {
+            await App.post('/api/user/logout');
+            window.location.href = '/login.html';
+        }
+
+        async function submitTask() {
+            const select = document.getElementById('task-select');
+            const taskName = select.value;
+            if (!taskName) { App.showToast('请选择分析任务', 'error'); return; }
+            const res = await App.post('/api/task/submit', { taskName, taskType: 'ALL' });
+            if (res?.code === 200) {
+                App.showToast('任务已提交', 'success');
+                select.value = '';
+                pollTaskResult(res.data.id);
+            } else {
+                App.showToast(res?.msg || '提交失败', 'error');
+            }
+        }
+
+        async function pollTaskResult(taskId) {
+            const poll = setInterval(async () => {
+                const res = await App.get(`/api/task/${taskId}/status`);
+                if (res?.code === 200) {
+                    loadTasks();
+                    if (res.data.status === 'FINISHED') {
+                        clearInterval(poll);
+                        App.showToast('分析完成！', 'success');
+                        loadAllResults(taskId);
+                    } else if (res.data.status === 'FAILED') {
+                        clearInterval(poll);
+                        App.showToast('任务失败', 'error');
+                    }
+                }
+            }, 1000);
+        }
+
+        async function loadTasks() {
+            const res = await App.get('/api/task/list');
+            const list = document.getElementById('task-list');
+            if (!res?.data?.length) {
+                list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>暂无任务记录，提交一个分析任务试试吧</p></div>';
+                return;
+            }
+            const mainTasks = res.data.filter(t => t.taskType === 'ALL');
+            if (!mainTasks.length) {
+                list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>暂无任务记录，提交一个分析任务试试吧</p></div>';
+                return;
+            }
+            list.innerHTML = mainTasks.map(t => {
+                const statusMap = {
+                    'FINISHED': { class: 'finished', text: '已完成', icon: '✅' },
+                    'RUNNING': { class: 'running', text: '分析中', icon: '⏳' },
+                    'FAILED': { class: 'failed', text: '失败', icon: '❌' },
+                    'PENDING': { class: 'pending', text: '等待中', icon: '⏱️' }
+                };
+                const s = statusMap[t.status] || statusMap['PENDING'];
+                return `
+                <div class="task-item">
+                    <div class="task-item-left">
+                        <div class="task-icon ${s.class}">${s.icon}</div>
+                        <div class="task-info">
+                            <h4>${t.taskName}</h4>
+                            <div class="task-meta">
+                                <span><span class="task-id">#${t.id}</span></span>
+                                <span>🕐 ${App.formatTime(t.createTime)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="task-item-right">
+                        <span class="task-status ${s.class}">${s.text}</span>
+                        ${t.status==='FINISHED' ? `<button class="btn-view" onclick="loadAllResults(${t.id})">📊 查看结果</button>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function loadAllResults(mainTaskId) {
+            const tasksRes = await App.get('/api/task/list');
+            if (!tasksRes?.data?.length) return;
+            const mainTask = tasksRes.data.find(t => t.id === mainTaskId);
+            if (!mainTask) return;
+            const subTasks = tasksRes.data.filter(t => t.taskType !== 'ALL' && t.taskName.startsWith(mainTask.taskName) && t.status === 'FINISHED');
+            if (!subTasks.length) { App.showToast('暂无结果', 'info'); return; }
+
+            document.getElementById('result-section').style.display = 'block';
+            document.getElementById('result-title').textContent = '📊 ' + mainTask.taskName;
+            document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+
+            let allData = { RANK: [], TIME_PEAK: [], IP_DIST: [], REGION: [] };
+            for (const sub of subTasks) {
+                const res = await App.get(`/api/task/${sub.id}/result`);
+                if (res?.data?.length) allData[sub.taskType] = res.data;
+            }
+
+            renderStats(allData);
+            if (allData.RANK.length) renderRank(allData.RANK);
+            if (allData.TIME_PEAK.length) renderTimePeak(allData.TIME_PEAK);
+            if (allData.IP_DIST.length) renderIpDist(allData.IP_DIST);
+            if (allData.REGION.length) renderRegion(allData.REGION);
+        }
+
+        function renderStats(allData) {
+            const grid = document.getElementById('stats-grid');
+            const rankTotal = allData.RANK.reduce((s, d) => s + parseInt(d.resultValue), 0);
+            const timeMax = allData.TIME_PEAK.length ? Math.max(...allData.TIME_PEAK.map(d => parseInt(d.resultValue))) : 0;
+            const ipCount = new Set(allData.IP_DIST.map(d => d.extra)).size;
+            grid.innerHTML = `
+                <div class="stat-item"><div class="num">${rankTotal.toLocaleString()}</div><div class="label">总访问量</div></div>
+                <div class="stat-item" style="background:linear-gradient(135deg,#f093fb,#f5576c)"><div class="num">${allData.RANK.length}</div><div class="label">网站数量</div></div>
+                <div class="stat-item" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"><div class="num">${timeMax.toLocaleString()}</div><div class="label">单时段峰值</div></div>
+                <div class="stat-item" style="background:linear-gradient(135deg,#43e97b,#38f9d7)"><div class="num">${ipCount}</div><div class="label">IP网段数</div></div>
+            `;
+        }
+
+        function renderRank(data) {
+            const sorted = [...data].sort((a, b) => parseInt(b.resultValue) - parseInt(a.resultValue));
+            const total = sorted.reduce((s, d) => s + parseInt(d.resultValue), 0);
+            const bar = echarts.init(document.getElementById('rank-bar'));
+            bar.setOption({
+                title: { text: '访问量排行', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'axis' },
+                grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+                xAxis: { type: 'category', data: sorted.map(d => d.resultKey.replace('http://www.', '')), axisLabel: { rotate: 25 } },
+                yAxis: { type: 'value', name: '访问量' },
+                series: [{ type: 'bar', data: sorted.map(d => parseInt(d.resultValue)), itemStyle: { borderRadius: [6,6,0,0], color: p => ['#ea4335','#fbbc04','#34a853','#1a73e8','#ff6d01','#46bdc6','#7baaf7','#f06292','#ab47bc','#78909c'][p.dataIndex%10] }, label: { show: true, position: 'top', fontSize: 11 } }]
+            });
+            window.addEventListener('resize', () => bar.resize());
+            const pie = echarts.init(document.getElementById('rank-pie'));
+            pie.setOption({
+                title: { text: '访问量占比', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                series: [{ type: 'pie', radius: ['40%', '70%'], data: sorted.map(d => ({ name: d.resultKey.replace('http://www.', ''), value: parseInt(d.resultValue) })), label: { formatter: '{b}\n{d}%' } }]
+            });
+            window.addEventListener('resize', () => pie.resize());
+            document.getElementById('rank-tbody').innerHTML = sorted.map((d, i) => {
+                const pct = ((parseInt(d.resultValue) / total) * 100).toFixed(1);
+                return `<tr><td><strong>${i+1}</strong></td><td>${d.resultKey}</td><td>${parseInt(d.resultValue).toLocaleString()}</td><td>${pct}%</td></tr>`;
+            }).join('');
+        }
+
+        function renderTimePeak(data) {
+            const urlMap = {};
+            data.forEach(d => { if (!urlMap[d.resultKey]) urlMap[d.resultKey] = {}; urlMap[d.resultKey][d.extra] = parseInt(d.resultValue); });
+            const hours = Array.from({length:24}, (_, i) => String(i).padStart(2, '0'));
+            const line = echarts.init(document.getElementById('time-line'));
+            line.setOption({
+                title: { text: '24小时流量趋势', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'axis' }, legend: { bottom: 0, type: 'scroll' },
+                grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                xAxis: { type: 'category', data: hours.map(h => h + ':00') },
+                yAxis: { type: 'value', name: '访问量' },
+                series: Object.entries(urlMap).map(([url, hd]) => ({ name: url.replace('http://www.', ''), type: 'line', smooth: true, data: hours.map(h => hd[h] || 0), areaStyle: { opacity: 0.1 } }))
+            });
+            window.addEventListener('resize', () => line.resize());
+            const urls = Object.keys(urlMap);
+            const heatData = [];
+            urls.forEach((url, yi) => { hours.forEach((h, xi) => { heatData.push([xi, yi, urlMap[url][h] || 0]); }); });
+            const heat = echarts.init(document.getElementById('time-heatmap'));
+            heat.setOption({
+                title: { text: '流量热力图', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { formatter: p => `${urls[p.value[1]].replace('http://www.','')} ${hours[p.value[0]]}:00<br>访问量: ${p.value[2]}` },
+                grid: { left: '15%', right: '10%', bottom: '10%', top: '10%' },
+                xAxis: { type: 'category', data: hours.map(h => h+':00') },
+                yAxis: { type: 'category', data: urls.map(u => u.replace('http://www.', '')) },
+                visualMap: { show: false, min: 0, max: Math.max(...heatData.map(d => d[2])), inRange: { color: ['#e8f4fd', '#08519c'] } },
+                series: [{ type: 'heatmap', data: heatData, label: { show: false } }]
+            });
+            window.addEventListener('resize', () => heat.resize());
+            const rows = [];
+            Object.entries(urlMap).forEach(([url, hd]) => {
+                const peakHour = Object.entries(hd).sort((a, b) => b[1] - a[1])[0];
+                if (peakHour) rows.push({ url, hour: peakHour[0], count: peakHour[1] });
+            });
+            rows.sort((a, b) => b.count - a.count);
+            document.getElementById('time-tbody').innerHTML = rows.map(r =>
+                `<tr><td>${r.url.replace('http://www.', '')}</td><td><strong>${r.hour}:00</strong></td><td>${r.count.toLocaleString()}</td></tr>`
+            ).join('');
+        }
+
+        function renderIpDist(data) {
+            const ipMap = {};
+            data.forEach(d => { if (!ipMap[d.extra]) ipMap[d.extra] = 0; ipMap[d.extra] += parseInt(d.resultValue); });
+            const sorted = Object.entries(ipMap).sort((a, b) => b[1] - a[1]);
+            const total = sorted.reduce((s, d) => s + d[1], 0);
+            const pie = echarts.init(document.getElementById('ip-pie'));
+            pie.setOption({
+                title: { text: 'IP来源分布 TOP10', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                series: [{ type: 'pie', radius: ['40%', '70%'], data: sorted.slice(0, 10).map(([ip, count]) => ({ name: ip, value: count })), label: { formatter: '{b}\n{d}%' } }]
+            });
+            window.addEventListener('resize', () => pie.resize());
+            const bar = echarts.init(document.getElementById('ip-bar'));
+            bar.setOption({
+                title: { text: 'IP网段访问量排行', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'axis' },
+                grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+                xAxis: { type: 'category', data: sorted.slice(0, 15).map(d => d[0]), axisLabel: { rotate: 30 } },
+                yAxis: { type: 'value', name: '访问量', min: 4990, max: 5010, interval: 10 },
+                series: [{ type: 'bar', data: sorted.slice(0, 15).map(d => d[1]), itemStyle: { borderRadius: [6,6,0,0] }, label: { show: true, position: 'top', fontSize: 11 } }]
+            });
+            window.addEventListener('resize', () => bar.resize());
+            document.getElementById('ip-tbody').innerHTML = sorted.slice(0, 15).map(([ip, count], i) => {
+                const pct = ((count / total) * 100).toFixed(1);
+                return `<tr><td><strong>${i+1}</strong></td><td>${ip}</td><td>${count.toLocaleString()}</td><td>${pct}%</td></tr>`;
+            }).join('');
+        }
+
+        // ====== 地区分布 ======
+        function renderRegion(data) {
+            const regionMap = {};
+            data.forEach(d => { if (!regionMap[d.extra]) regionMap[d.extra] = 0; regionMap[d.extra] += parseInt(d.resultValue); });
+            const sorted = Object.entries(regionMap).sort((a, b) => b[1] - a[1]);
+            const total = sorted.reduce((s, d) => s + d[1], 0);
+
+            // 饼图
+            const pie = echarts.init(document.getElementById('region-pie'));
+            pie.setOption({
+                title: { text: '地区访问量分布', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                series: [{ type: 'pie', radius: ['40%', '70%'], data: sorted.map(([region, count]) => ({ name: region, value: count })), label: { formatter: '{b}\n{d}%' } }]
+            });
+            window.addEventListener('resize', () => pie.resize());
+
+            // 柱状图
+            const bar = echarts.init(document.getElementById('region-bar'));
+            bar.setOption({
+                title: { text: '地区访问量排行', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'axis' },
+                grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+                xAxis: { type: 'category', data: sorted.map(d => d[0]), axisLabel: { rotate: 30 } },
+                yAxis: { type: 'value', name: '访问量' },
+                series: [{ type: 'bar', data: sorted.map(d => d[1]), itemStyle: { borderRadius: [6,6,0,0], color: p => ['#ea4335','#fbbc04','#34a853','#1a73e8','#ff6d01','#46bdc6','#7baaf7','#f06292','#ab47bc','#78909c'][p.dataIndex%10] }, label: { show: true, position: 'top', fontSize: 11 } }]
+            });
+            window.addEventListener('resize', () => bar.resize());
+
+            // 表格
+            document.getElementById('region-tbody').innerHTML = sorted.map(([region, count], i) => {
+                const pct = ((count / total) * 100).toFixed(1);
+                return `<tr><td><strong>${i+1}</strong></td><td>${region}</td><td>${count.toLocaleString()}</td><td>${pct}%</td></tr>`;
+            }).join('');
+        }
+    </script>
+</body>
+</html>
